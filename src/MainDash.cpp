@@ -487,8 +487,12 @@ public:
   bool GetAudioInformation(unsigned int &channelCount){ return  m_codecHandler->GetAudioInformation(channelCount); };
   bool TimeSeek(double pts, bool preceeding)
   {
-    if (AP4_SUCCEEDED(SeekSample(m_Track->GetId(), static_cast<AP4_UI64>(pts*(double)m_Track->GetMediaTimeScale()), preceeding)))
+    AP4_Ordinal sampleIndex;
+    if (AP4_SUCCEEDED(SeekSample(m_Track->GetId(), static_cast<AP4_UI64>(pts*(double)m_Track->GetMediaTimeScale()), sampleIndex, preceeding)))
+    {
+      m_Decrypter->SetSampleIndex(sampleIndex);
       return AP4_SUCCEEDED(ReadSample());
+    }
     return false;
   };
 
@@ -497,10 +501,11 @@ protected:
     AP4_Position       moof_offset,
     AP4_Position       mdat_payload_offset)
   {
-    if (m_Protected_desc)
+    AP4_Result result;
+
+    if (AP4_SUCCEEDED((result = AP4_LinearReader::ProcessMoof(moof, moof_offset, mdat_payload_offset))) &&  m_Protected_desc)
     {
       //Setup the decryption
-      AP4_Result result;
       AP4_CencSampleInfoTable *sample_table;
       AP4_UI32 algorithm_id = 0;
 
@@ -518,7 +523,7 @@ protected:
       if (AP4_FAILED(result = AP4_CencSampleDecrypter::Create(sample_table, algorithm_id, 0, 0, 0, m_SingleSampleDecryptor, m_Decrypter)))
         return result;
     }
-    return AP4_LinearReader::ProcessMoof(moof, moof_offset, mdat_payload_offset);
+    return result;
   }
 
 private:
@@ -598,6 +603,8 @@ void Session::GetSupportedDecrypterURN(std::pair<std::string, std::string> &urn)
   VFSDirEntry *items(0);
   unsigned int num_items(0);
 
+  xbmc->Log(ADDON::LOG_DEBUG, "Searching for decrypters in: %s", path);
+
   if (!xbmc->GetDirectory(path, "", &items, &num_items))
     return;
 
@@ -617,6 +624,7 @@ void Session::GetSupportedDecrypterURN(std::pair<std::string, std::string> &urn)
 
         if (decrypter && (suppUrn = decrypter->Supported(license_type_.c_str(), license_key_.c_str())))
         {
+          xbmc->Log(ADDON::LOG_DEBUG, "Found decrypter: %s", items[i].path);
           decrypterModule_ = mod;
           decrypter_ = decrypter;
           urn.first = suppUrn;
@@ -947,10 +955,18 @@ extern "C" {
 
     const char *lt(""), *lk("");
     for (unsigned int i(0); i < props.m_nCountInfoValues; ++i)
+    {
       if (strcmp(props.m_ListItemProperties[i].m_strKey, "inputstream.mpd.license_type") == 0)
+      {
+        xbmc->Log(ADDON::LOG_DEBUG, "found inputstream.mpd.license_type: %s", props.m_ListItemProperties[i].m_strValue);
         lt = props.m_ListItemProperties[i].m_strValue;
+      }
       else if (strcmp(props.m_ListItemProperties[i].m_strKey, "inputstream.mpd.license_key") == 0)
+      {
+        xbmc->Log(ADDON::LOG_DEBUG, "found inputstream.mpd.license_key: [not shown]");
         lk = props.m_ListItemProperties[i].m_strValue;
+      }
+    }
 
     kodihost.SetAddonPath(props.m_libFolder);
 
@@ -1181,7 +1197,7 @@ extern "C" {
 
     xbmc->Log(ADDON::LOG_INFO, "DemuxSeekTime (%d)", time);
 
-    return session->SeekTime(static_cast<double>(time)*0.001f, 0, backwards);
+    return session->SeekTime(static_cast<double>(time)*0.001f, 0, !backwards);
   }
 
   void DemuxSetSpeed(int speed)

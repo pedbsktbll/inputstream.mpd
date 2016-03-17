@@ -549,7 +549,7 @@ AP4_LinearReader::ReadNextSample(AP4_UI32        track_id,
 |   AP4_LinearReader::SeekSample
 +---------------------------------------------------------------------*/
 AP4_Result
-AP4_LinearReader::SeekSample(AP4_UI32 track_id, AP4_UI64 ts, bool preceedingSync)
+AP4_LinearReader::SeekSample(AP4_UI32 track_id, AP4_UI64 ts, AP4_Ordinal &sample_index, bool preceedingSync)
 {
   // we only support fragmented sources for now
   if (!m_HasFragments)
@@ -573,7 +573,6 @@ AP4_LinearReader::SeekSample(AP4_UI32 track_id, AP4_UI64 ts, bool preceedingSync
   if (!tracker->m_SampleTable && AP4_FAILED(result = Advance()))
     return result;
 
-  AP4_Ordinal sample_index;
   while (AP4_FAILED(result = tracker->m_SampleTable->GetSampleIndexForTimeStamp(ts, sample_index)))
   {
     if (result == AP4_ERROR_NOT_ENOUGH_DATA)
@@ -587,7 +586,14 @@ AP4_LinearReader::SeekSample(AP4_UI32 track_id, AP4_UI64 ts, bool preceedingSync
   }
 
   sample_index = tracker->m_SampleTable->GetNearestSyncSampleIndex(sample_index, preceedingSync);
-
+  //we have reached the end -> go for the first sample of the next segment
+  if (sample_index == tracker->m_SampleTable->GetSampleCount())
+  {
+    tracker->m_NextSampleIndex = tracker->m_SampleTable->GetSampleCount();
+    if (AP4_FAILED(result = Advance()))
+      return result;
+    sample_index = 0;
+  }
   return SetSampleIndex(track_id, sample_index);
 }
 
