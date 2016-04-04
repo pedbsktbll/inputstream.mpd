@@ -166,9 +166,9 @@ WV_CencSingleSampleDecrypter::WV_CencSingleSampleDecrypter(std::string licenseUR
   char cSep = strBasePath.back();
   strBasePath += "widevine";
   strBasePath += cSep;
-  host->CreateDirectoryW(strBasePath.c_str());
+  host->CreateDirectory(strBasePath.c_str());
   strBasePath += host->GetHexDomain();
-  host->CreateDirectoryW(strBasePath.c_str());
+  host->CreateDirectory(strBasePath.c_str());
 
   wv_adapter = new media::CdmAdapter("com.widevine.alpha", strLibPath, strBasePath, media::CdmConfig(false, true), *(dynamic_cast<media::CdmAdapterClient*>(this)));
   if (!wv_adapter->valid())

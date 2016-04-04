@@ -111,6 +111,7 @@ public:
 
     //let us make cdm userdata out of the addonpath and share them between addons
     m_strProfilePath.resize(m_strProfilePath.find_last_of(pathSep[0], m_strProfilePath.length() - 2));
+    m_strProfilePath.resize(m_strProfilePath.find_last_of(pathSep[0], m_strProfilePath.length() - 1));
     m_strProfilePath.resize(m_strProfilePath.find_last_of(pathSep[0], m_strProfilePath.length() - 1) + 1);
 
     xbmc->CreateDirectory(m_strProfilePath.c_str());
@@ -131,6 +132,14 @@ private:
   std::string m_strDecrypterPath, m_strProfilePath, m_strHexDomain;
 
 }kodihost;
+
+struct addonstring
+{
+    addonstring(char *d){data_= d;};
+    ~addonstring() {xbmc->FreeString(data_);};
+    const char* c_str() {return data_? data_:"";};
+    char *data_;
+};
 
 /*******************************************************
 Bento4 Streams
@@ -632,18 +641,21 @@ Session::~Session()
 void Session::GetSupportedDecrypterURN(std::pair<std::string, std::string> &urn)
 {
   typedef SSD_DECRYPTER *(*CreateDecryptorInstanceFunc)(SSD_HOST *host, uint32_t version);
-
-  const char *path = kodihost.GetDecrypterPath();
-  bool searchProfilePath = true;
-
-AGAIN:
-
+  
+  char specialpath[1024];
+  if (!xbmc->GetSetting("DECRYPTERPATH", specialpath))
+  {
+    xbmc->Log(ADDON::LOG_DEBUG, "DECRYPTERPATH not specified in settings.xml");
+    return;
+  }
+  addonstring path(xbmc->TranslateSpecialProtocol(specialpath));
+  
   VFSDirEntry *items(0);
   unsigned int num_items(0);
 
-  xbmc->Log(ADDON::LOG_DEBUG, "Searching for decrypters in: %s", path);
+  xbmc->Log(ADDON::LOG_DEBUG, "Searching for decrypters in: %s", path.c_str());
 
-  if (!xbmc->GetDirectory(path, "", &items, &num_items))
+  if (!xbmc->GetDirectory(path.c_str(), "", &items, &num_items))
     return;
 
   for (unsigned int i(0); i < num_items; ++i)
@@ -673,13 +685,6 @@ AGAIN:
     }
   }
   xbmc->FreeDirectory(items, num_items);
-
-  if (!decrypterModule_ && searchProfilePath)
-  {
-    path = kodihost.GetProfilePath();
-    searchProfilePath = false;
-    goto AGAIN;
-  }
 }
 
 AP4_CencSingleSampleDecrypter *Session::CreateSingleSampleDecrypter(AP4_DataBuffer &streamCodec)
