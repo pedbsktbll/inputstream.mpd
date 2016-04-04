@@ -1269,6 +1269,12 @@ extern "C" {
 
   }
 
+  //callback - will be called from kodi
+  void SetVideoResolution(int width, int height)
+  {
+
+  }
+
   int GetTotalTime()
   {
     if (!session)
