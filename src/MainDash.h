@@ -63,13 +63,14 @@ public:
   KodiDASHStream(dash::DASHTree &tree, dash::DASHTree::StreamType type)
     :dash::DASHStream(tree, type){};
 protected:
-  virtual bool download(const char* url);
+  virtual bool download(const char* url, const char* rangeHeader) override;
+  virtual bool parseIndexRange() override;
 };
 
 class Session
 {
 public:
-  Session(const char *strURL, const char *strLicType, const char* strLicKey);
+  Session(const char *strURL, const char *strLicType, const char* strLicKey, const char* profile_path);
   ~Session();
   bool initialize();
   FragmentedSampleReader *GetNextSample();
@@ -104,6 +105,7 @@ protected:
 private:
   std::string mpdFileURL_;
   std::string license_key_, license_type_;
+  std::string profile_path_;
   void * decrypterModule_;
   SSD_DECRYPTER *decrypter_;
 

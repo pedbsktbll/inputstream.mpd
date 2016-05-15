@@ -221,6 +221,7 @@ static const char* ltranslate(const char * in)
 
 DASHTree::DASHTree()
   :download_speed_(0.0)
+  , average_download_speed_(0.0f)
   , parser_(0)
   , encryptionState_(ENCRYTIONSTATE_UNENCRYPTED)
   , current_period_(0)
@@ -338,7 +339,20 @@ start(void *data, const char *el, const char **attr)
               dash->currentNode_ |= DASHTree::MPDNODE_SEGMENTLIST;
             }
           }
-
+          else if (strcmp(el, "SegmentBase") == 0)
+          {
+            //<SegmentBase indexRangeExact = "true" indexRange = "867-1618">
+            for (; *attr;)
+            {
+              if (strcmp((const char*)*attr, "indexRange") == 0)
+                sscanf((const char*)*(attr + 1), "%u-%u" , &dash->current_representation_->indexRangeMin_, &dash->current_representation_->indexRangeMax_);
+              else if (strcmp((const char*)*attr, "indexRangeExact") == 0)
+                dash->current_representation_->indexRangeExact_ = strcmp((const char*)*(attr + 1), "true") == 0;
+              attr += 2;
+            }
+            if(dash->current_representation_->indexRangeExact_ && dash->current_representation_->indexRangeMax_)
+              dash->currentNode_ |= DASHTree::MPDNODE_SEGMENTLIST;
+          }
         }
         else if (dash->currentNode_ & DASHTree::MPDNODE_SEGMENTDURATIONS)
         {
@@ -416,6 +430,17 @@ start(void *data, const char *el, const char **attr)
               dash->current_representation_->id = (const char*)*(attr + 1);
             else if (strcmp((const char*)*attr, "codecPrivateData") == 0)
               dash->current_representation_->codec_private_data_ = annexb_to_avc((const char*)*(attr + 1));
+            else if (dash->current_adaptationset_->mimeType_.empty() && strcmp((const char*)*attr, "mimeType") == 0)
+            {
+              dash->current_adaptationset_->mimeType_ = (const char*)*(attr + 1);
+              if (dash->current_adaptationset_->type_ == DASHTree::NOTYPE)
+              {
+                if (strncmp(dash->current_adaptationset_->mimeType_.c_str(), "video", 5) == 0)
+                  dash->current_adaptationset_->type_ = DASHTree::VIDEO;
+                else if (strncmp(dash->current_adaptationset_->mimeType_.c_str(), "audio", 5) == 0)
+                  dash->current_adaptationset_->type_ = DASHTree::AUDIO;
+              }
+            }
             attr += 2;
           }
           dash->currentNode_ |= DASHTree::MPDNODE_REPRESENTATION;
@@ -572,13 +597,20 @@ end(void *data, const char *el)
           {
             if (strcmp(el, "BaseURL") == 0)
             {
-              dash->current_representation_->url_ = dash->current_adaptationset_->base_url_ + dash->strXMLText_;
+              while (dash->strXMLText_.size() && (dash->strXMLText_[0] == '\n' || dash->strXMLText_[0] == '\r'))
+                dash->strXMLText_.erase(dash->strXMLText_.begin());
+
+              if (dash->strXMLText_.compare(0, 7, "http://") == 0
+                || dash->strXMLText_.compare(0, 8, "https://") == 0)
+                dash->current_representation_->url_ = dash->strXMLText_;
+              else
+                dash->current_representation_->url_ = dash->current_adaptationset_->base_url_ + dash->strXMLText_;
               dash->currentNode_ &= ~DASHTree::MPDNODE_BASEURL;
             }
           }
           else if (dash->currentNode_ & DASHTree::MPDNODE_SEGMENTLIST)
           {
-            if (strcmp(el, "SegmentList") == 0)
+            if (strcmp(el, "SegmentList") == 0 || strcmp(el, "SegmentBase") == 0)
             {
               dash->currentNode_ &= ~DASHTree::MPDNODE_SEGMENTLIST;
               if (!dash->segcount_)
@@ -762,3 +794,12 @@ uint32_t DASHTree::estimate_segcount(uint32_t duration, uint32_t timescale)
   duration /= timescale;
   return static_cast<uint32_t>((overallSeconds_ / duration)*1.01);
 }
+
+void DASHTree::set_download_speed(double speed)
+{
+  download_speed_ = speed;
+  if (!average_download_speed_)
+    average_download_speed_ = download_speed_;
+  else
+    average_download_speed_ = average_download_speed_*0.9 + download_speed_*0.1;
+};
