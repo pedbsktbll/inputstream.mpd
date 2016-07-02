@@ -196,8 +196,8 @@ bool DASHStream::seek_time(double seek_seconds, double current_seconds, bool &ne
   } 
   else if (current_rep_->flags_ & DASHTree::Representation::TIMELINE)
   {
-    uint64_t sec_in_ts = static_cast<uint64_t>(seek_seconds * current_rep_->timescale_);
-    choosen_seg = 0;
+    uint64_t sec_in_ts = static_cast<uint64_t>(seek_seconds * current_rep_->segtpl_.timescale);
+    choosen_seg = (current_rep_->flags_ & DASHTree::Representation::INITIALIZATION)!=0 ? 1 : 0; //Skip initialization
     while (choosen_seg < current_rep_->segments_.size() && sec_in_ts > current_rep_->segments_[choosen_seg].range_begin_)
       ++choosen_seg;
   }
@@ -239,7 +239,7 @@ bool DASHStream::select_stream(bool force, bool justInit, unsigned int repId)
     for (std::vector<DASHTree::Representation*>::const_iterator br(current_adp_->repesentations_.begin()), er(current_adp_->repesentations_.end()); br != er; ++br)
     {
       unsigned int dist;
-      if ((dist = abs((*br)->width_ * (*br)->height_ - width_ * height_)) < bestDist && (*br)->bandwidth_ <= bandwidth_
+      if ((dist = abs(static_cast<int>((*br)->width_ * (*br)->height_) - static_cast<int>(width_ * height_))) < bestDist && (*br)->bandwidth_ <= bandwidth_
         && (!new_rep || ((*br)->bandwidth_ > new_rep->bandwidth_)))
       {
         bestDist = dist;
