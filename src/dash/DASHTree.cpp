@@ -455,9 +455,10 @@ start(void *data, const char *el, const char **attr)
                 sscanf((const char*)*(attr + 1), "%u-%u" , &dash->current_representation_->indexRangeMin_, &dash->current_representation_->indexRangeMax_);
               else if (strcmp((const char*)*attr, "indexRangeExact") == 0 && strcmp((const char*)*(attr + 1), "true") == 0)
                 dash->current_representation_->flags_ |= DASHTree::Representation::INDEXRANGEEXACT;
+              dash->current_representation_->flags_ |= DASHTree::Representation::SEGMENTBASE;
               attr += 2;
             }
-            if((dash->current_representation_->flags_ & DASHTree::Representation::INDEXRANGEEXACT) && dash->current_representation_->indexRangeMax_)
+            if(dash->current_representation_->indexRangeMax_)
               dash->currentNode_ |= DASHTree::MPDNODE_SEGMENTLIST;
           }
           else if (strcmp(el, "SegmentTemplate") == 0)
@@ -480,7 +481,8 @@ start(void *data, const char *el, const char **attr)
           if (dash->currentNode_ & DASHTree::MPDNODE_SEGMENTTIMELINE)
           {
             // <S t="3600" d="900000" r="2398"/>
-            unsigned int t(0), d(0), r(1);
+            unsigned int d(0), r(1);
+            static uint64_t t(0);
             for (; *attr;)
             {
               if (strcmp((const char*)*attr, "t") == 0)
@@ -851,6 +853,8 @@ end(void *data, const char *el)
                   return;
                 }
               }
+              else if (dash->current_representation_->flags_ & DASHTree::Representation::SEGMENTBASE)
+                return;
               delete dash->current_representation_;
               dash->current_adaptationset_->repesentations_.pop_back();
             }
