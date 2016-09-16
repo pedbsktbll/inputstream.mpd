@@ -155,10 +155,19 @@ WV_CencSingleSampleDecrypter::WV_CencSingleSampleDecrypter(std::string licenseUR
   , key_size_(0)
   , key_(0)
 {
+  const uint8_t checksum[] = { 0x53, 0x44, 0x32, 0x29, 0x61, 0x76, 0x63, 0x70, 0x3D };
+
   if (pssh_size > 256)
   {
     Log(SSD_HOST::LL_ERROR, "Init_data with length: %u seems not to be cenc init data!", pssh_size);
     return;
+  }
+
+  // check if the pssh key is well formatted
+  if (pssh_size > 80 && memcmp(pssh + pssh_size - 45, checksum, 9)==0)
+  {
+    pssh_.resize(pssh_size - 41);
+    pssh_.back() = 0;
   }
 
   std::string strLibPath = host->GetLibraryPath();
@@ -273,6 +282,14 @@ bool WV_CencSingleSampleDecrypter::SendSessionMessage()
     return false;
   }
 
+#ifdef _DEBUG
+  std::string strDbg = host->GetProfilePath();
+  strDbg += "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED.challenge";
+  FILE*f = fopen(strDbg.c_str(), "wb");
+  fwrite(wv_adapter->GetMessage(), 1, wv_adapter->GetMessageSize(), f);
+  fclose(f);
+#endif
+
   //Process placeholder in GET String
   std::string::size_type insPos(blocks[0].find("{SSM}"));
   if (insPos != std::string::npos)
@@ -353,6 +370,14 @@ bool WV_CencSingleSampleDecrypter::SendSessionMessage()
     goto SSMFAIL;
   }
 
+#ifdef _DEBUG
+  strDbg = host->GetProfilePath();
+  strDbg += "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED.response";
+  f = fopen(strDbg.c_str(), "wb");
+  fwrite(response.c_str(), 1, response.size(), f);
+  fclose(f);
+#endif
+
   if (!blocks[3].empty())
   {
     if (blocks[3][0] == 'J')
@@ -383,14 +408,6 @@ bool WV_CencSingleSampleDecrypter::SendSessionMessage()
       else
       {
         Log(SSD_HOST::LL_ERROR, "Unable to find %s in JSON string", blocks[3].c_str() + 2);
-
-#ifdef _DEBUG
-        std::string strDbg = host->GetProfilePath();
-        strDbg += "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED.response";
-        FILE*f = fopen(strDbg.c_str(), "wb");
-        fwrite(response.c_str(), 1, response.size(), f);
-        fclose(f);
-#endif
         goto SSMFAIL;
       }
     }
