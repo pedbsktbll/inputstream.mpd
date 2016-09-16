@@ -170,6 +170,14 @@ WV_CencSingleSampleDecrypter::WV_CencSingleSampleDecrypter(std::string licenseUR
     pssh_.back() = 0;
   }
 
+#ifdef _DEBUG
+  std::string strDbg = host->GetProfilePath();
+  strDbg += "EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED.init";
+  FILE*f = fopen(strDbg.c_str(), "wb");
+  fwrite(pssh_.c_str(), 1, pssh_.size(), f);
+  fclose(f);
+#endif
+
   std::string strLibPath = host->GetLibraryPath();
   if (strLibPath.empty())
   {
